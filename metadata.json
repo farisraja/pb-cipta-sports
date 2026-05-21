@@ -1,0 +1,6 @@
+{
+  "name": "PB CIPTA Esports",
+  "description": "Premium esports tournament management and leaderboard system for elite leagues.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
