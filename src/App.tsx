@@ -299,6 +299,10 @@ export default function App() {
   } | null>(null);
 
   const startTournament = () => {
+    if (players.length < 4) {
+      alert('Dibutuhkan minimal 4 pemain terdaftar untuk memulai turnamen!');
+      return;
+    }
     // Top 4 players
     const top4 = [...players].sort((a, b) => b.points - a.points).slice(0, 4);
     setTournamentInfo({
