@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next';
 
 export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const { t } = useTranslation();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(() => {
+    return localStorage.getItem('pb_auth_mode') !== 'register';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -145,7 +147,12 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
 
             <div className="mt-8 text-center border-t border-white/5 pt-6">
               <button
-                onClick={() => setIsLogin(!isLogin)}
+                type="button"
+                onClick={() => {
+                  const newMode = !isLogin;
+                  setIsLogin(newMode);
+                  localStorage.setItem('pb_auth_mode', newMode ? 'login' : 'register');
+                }}
                 className="text-[10px] font-mono text-on-surface-variant/60 hover:text-primary transition-colors uppercase tracking-[0.2em] font-bold"
               >
                 {isLogin ? "Don't have a profile? Register" : 'Already enlisted? Login'}
