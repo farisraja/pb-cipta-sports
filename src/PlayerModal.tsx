@@ -176,7 +176,7 @@ export default function PlayerModal({ player, isAdmin, onClose, onSave }: Player
               <button type="button" onClick={onClose} className="px-6 py-3 rounded-2xl text-[10px] font-mono font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all active:scale-95">
                 Batal
               </button>
-              <button type="submit" disabled={isSaving} className="px-6 py-3 rounded-2xl bg-primary text-on-primary text-[10px] font-mono uppercase tracking-[0.2em] font-black shadow-[0_0_20px_rgba(0,245,255,0.3)] hover:shadow-[0_0_30px_rgba(0,245,255,0.5)] transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95">
+              <button type="submit" disabled={isSaving} className="px-6 py-3 rounded-2xl bg-primary text-slate-900 text-[10px] font-mono uppercase tracking-[0.2em] font-black shadow-[0_0_20px_rgba(0,245,255,0.3)] hover:shadow-[0_0_30px_rgba(0,245,255,0.5)] transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95">
                 {isSaving ? 'Menyimpan...' : <><Save size={14} /> {isAdmin ? 'Simpan Data' : 'Simpan Profil & Ajukan Update Stat'}</>}
               </button>
             </div>
