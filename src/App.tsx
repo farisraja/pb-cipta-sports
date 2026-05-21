@@ -1075,8 +1075,8 @@ export default function App() {
                     <motion.div 
                       key={match.id}
                       initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
                       className="p-4 md:p-5 rounded-2xl bg-surface-container/30 border border-primary/5 hover:border-primary/20 transition-all flex flex-col md:flex-row items-center gap-4 md:gap-6 justify-between"
                     >
                       <div className="flex flex-col gap-1 min-w-32 w-full md:w-auto text-center md:text-left">
@@ -1254,8 +1254,7 @@ export default function App() {
                       {players.map((p, i) => (
                         <motion.tr 
                           initial={{ opacity: 0, y: 10 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, margin: "-50px" }}
+                          animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * 0.05 }}
                           key={p.id} 
                           onClick={() => setSelectedPlayer(p)}
@@ -1290,8 +1289,8 @@ export default function App() {
                               <div className="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden shrink-0">
                                 <motion.div 
                                   initial={{ width: 0 }}
-                                  whileInView={{ width: `${p.winRate}%` }}
-                                  viewport={{ once: true }}
+                                  animate={{ width: `${p.winRate}%` }}
+                                  transition={{ duration: 1, delay: i * 0.05 }}
                                   className="h-full bg-primary-container shadow-[0_0_15px_#00f5ff]" 
                                 />
                               </div>
@@ -1318,8 +1317,7 @@ export default function App() {
                   {players.map((p, i) => (
                     <motion.div
                       initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true, margin: "-20px" }}
+                      animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
                       key={p.id}
                       onClick={() => setSelectedPlayer(p)}
