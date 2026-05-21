@@ -1592,6 +1592,10 @@ export default function App() {
           <PlayerDetailsModal 
             player={selectedPlayer} 
             onClose={() => setSelectedPlayer(null)} 
+            allMatches={matchHistory}
+            isAdmin={currentUser?.role === 'ADMIN'}
+            onDeleteMatch={handleDeleteMatch}
+            currentSeason={currentSeason}
           />
         )}
         
@@ -1854,14 +1858,53 @@ function StatBar({ label, value, color }: { label: string, value: number, color:
   );
 }
 
-function PlayerDetailsModal({ player, onClose }: { player: Player, onClose: () => void }) {
+function PlayerDetailsModal({ 
+  player, 
+  onClose,
+  allMatches,
+  isAdmin,
+  onDeleteMatch,
+  currentSeason
+}: { 
+  player: Player, 
+  onClose: () => void,
+  allMatches: Match[],
+  isAdmin: boolean,
+  onDeleteMatch: (id: string) => void,
+  currentSeason: string
+}) {
   const { t } = useTranslation();
 
-  const matchHistory = [
-    { opponent: 'Rizal', result: 'WIN', score: '21-18, 21-15', date: '2 days ago' },
-    { opponent: 'Andi', result: 'LOSS', score: '24-22, 19-21, 15-21', date: '5 days ago' },
-    { opponent: 'Iqbal', result: 'WIN', score: '21-12, 21-10', date: '1 week ago' },
-  ];
+  const getDivision = (wins: number) => {
+    if (wins === 0) return 'Beginner Division';
+    if (wins < 5) return 'Intermediate Division';
+    if (wins < 15) return 'Advanced Division';
+    if (wins < 30) return 'Pro Division';
+    return 'Elite Division';
+  };
+  const wins = Math.round(player.matches * (player.winRate / 100));
+  const division = getDivision(wins);
+
+  const playerMatches = allMatches.filter(m => 
+    m.teamAlpha.some(p => p.id === player.id) || 
+    m.teamOmega.some(p => p.id === player.id)
+  ).map(m => {
+    const isAlpha = m.teamAlpha.some(p => p.id === player.id);
+    const opponents = isAlpha ? m.teamOmega : m.teamAlpha;
+    const opponentNames = opponents.map(p => p.name).join(' & ');
+    
+    let result = 'DRAW';
+    if (m.outcome === 'ALPHA') result = isAlpha ? 'WIN' : 'LOSS';
+    if (m.outcome === 'OMEGA') result = isAlpha ? 'LOSS' : 'WIN';
+    
+    return {
+      id: m.id,
+      date: new Date(m.date).toLocaleDateString(),
+      opponent: opponentNames,
+      score: '-', // Score is not tracked in DB
+      result: result
+    };
+  });
 
   return (
     <motion.div 
@@ -1894,11 +1937,11 @@ function PlayerDetailsModal({ player, onClose }: { player: Player, onClose: () =
                 {player.name}
               </h2>
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-                <span className="text-[10px] font-mono text-primary font-black uppercase tracking-[0.3em] bg-primary/10 px-5 py-2 rounded-full border border-primary/20">
-                  {t('elite_division')}
+                <span className="px-3 py-1 bg-surface-container rounded-full border border-primary/20 text-on-surface-variant font-mono text-[9px] uppercase tracking-widest font-bold">
+                  {division}
                 </span>
                 <span className="text-[10px] font-mono text-secondary font-black uppercase tracking-[0.4em]">
-                   {t('active_season_4')}
+                   {currentSeason} ACTIVE
                 </span>
               </div>
               <p className="text-on-surface-variant/40 font-mono text-[9px] uppercase tracking-[0.4em] font-bold">South Jakarta Region</p>
@@ -1946,10 +1989,10 @@ function PlayerDetailsModal({ player, onClose }: { player: Player, onClose: () =
                 </h3>
               </div>
               <div className="space-y-4">
-                {matchHistory.map((m, i) => (
+                {playerMatches.map((m, i) => (
                   <div key={i} className="bg-white/[0.02] border border-white/5 p-6 rounded-3xl flex justify-between items-center group/log hover:border-primary/20 transition-all shadow-xl">
                     <div className="flex items-center gap-6">
-                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-mono text-xs font-black shadow-lg ${m.result === 'WIN' ? 'bg-secondary/10 text-secondary border border-secondary/20' : 'bg-error/10 text-error border border-error/20'}`}>
+                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-mono text-xs font-black shadow-lg ${m.result === 'WIN' ? 'bg-secondary/10 text-secondary border border-secondary/20' : m.result === 'LOSS' ? 'bg-error/10 text-error border border-error/20' : 'bg-surface-variant text-on-surface border-outline'}`}>
                           {m.result[0]}
                        </div>
                        <div>
@@ -1958,11 +2001,27 @@ function PlayerDetailsModal({ player, onClose }: { player: Player, onClose: () =
                          <div className="text-[10px] font-mono text-on-surface-variant/40 mt-1 uppercase font-bold tracking-widest">{m.score}</div>
                        </div>
                     </div>
-                    <div className={`font-mono text-sm font-black tracking-[0.2em] italic ${m.result === 'WIN' ? 'text-secondary text-glow-secondary' : 'text-error'}`}>
-                      {m.result}
+                    <div className="flex items-center gap-4">
+                      <div className={`font-mono text-sm font-black tracking-[0.2em] italic ${m.result === 'WIN' ? 'text-secondary text-glow-secondary' : m.result === 'LOSS' ? 'text-error' : 'text-on-surface'}`}>
+                        {m.result}
+                      </div>
+                      {isAdmin && (
+                        <button 
+                          onClick={() => onDeleteMatch(m.id)}
+                          className="p-2 text-red-500 hover:bg-red-500/20 rounded-xl transition-colors border border-transparent hover:border-red-500/30"
+                          title="Hapus Match"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
+                {playerMatches.length === 0 && (
+                  <div className="text-center py-8 text-on-surface-variant font-mono text-xs uppercase tracking-widest">
+                    Belum ada riwayat pertandingan.
+                  </div>
+                )}
               </div>
             </div>
           </div>
