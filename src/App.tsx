@@ -549,23 +549,30 @@ export default function App() {
 
   const handleDeleteMatch = async (matchId: string) => {
     if (window.confirm('Yakin ingin menghapus riwayat match ini? Poin pemain tidak akan berubah, hanya riwayat yang dihapus.')) {
-      setMatchHistory(prev => prev.filter(m => m.id !== matchId));
-      await supabase.from('matches').delete().eq('id', matchId);
+      const { error } = await supabase.from('matches').delete().eq('id', matchId);
+      if (error) {
+        alert('Gagal menghapus di database: ' + error.message);
+      } else {
+        setMatchHistory(prev => prev.filter(m => m.id !== matchId));
+      }
     }
   };
 
   const handleDeleteAllHistory = async () => {
     if (window.confirm('Yakin ingin menghapus SEMUA riwayat match? Tindakan ini tidak dapat dibatalkan.')) {
-      setMatchHistory([]);
-      await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      
-      setNotifications(prev => [{
-        id: Date.now().toString(),
-        type: 'system',
-        title: 'History Cleared',
-        desc: 'Semua riwayat pertandingan telah dihapus oleh Admin.',
-        time: 'Baru saja'
-      }, ...prev]);
+      const { error } = await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) {
+        alert('Gagal menghapus semua data di database: ' + error.message);
+      } else {
+        setMatchHistory([]);
+        setNotifications(prev => [{
+          id: Date.now().toString(),
+          type: 'system',
+          title: 'History Cleared',
+          desc: 'Semua riwayat pertandingan telah dihapus oleh Admin.',
+          time: 'Baru saja'
+        }, ...prev]);
+      }
     }
   };
 
