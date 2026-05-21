@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { LogIn, UserPlus, Trophy, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
+import { LogIn, UserPlus, Trophy, Mail, Lock, AlertCircle, ArrowRight, User } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { useTranslation } from 'react-i18next';
 
