@@ -623,7 +623,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:pl-64 overflow-x-hidden">
+    <div className="min-h-screen flex flex-col md:pl-64">
       <div className="bg-trail" />
       {/* Top Bar */}
       <header className="fixed top-0 left-0 md:left-64 right-0 z-40 bg-surface/60 backdrop-blur-2xl border-b border-white/5 h-20 flex items-center justify-between px-3 sm:px-6 md:px-12">
