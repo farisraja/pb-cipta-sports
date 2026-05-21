@@ -1071,7 +1071,7 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
-                  {filteredMatchHistory.map(match => (
+                  {filteredMatchHistory.map((match, index) => (
                     <motion.div 
                       key={match.id}
                       initial={{ opacity: 0, y: 10 }}
