@@ -136,7 +136,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-4 mt-4 bg-primary text-on-primary rounded-2xl font-mono text-[11px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(0,245,255,0.3)] hover:shadow-[0_0_30px_rgba(0,245,255,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 group"
+                className="w-full py-4 mt-4 bg-primary text-slate-900 rounded-2xl font-mono text-[11px] font-black uppercase tracking-[0.3em] shadow-[0_0_20px_rgba(0,245,255,0.3)] hover:shadow-[0_0_30px_rgba(0,245,255,0.5)] transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 group"
               >
                 {isLoading ? 'Processing...' : isLogin ? 'Access League' : 'Register Profile'}
                 {!isLoading && <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />}

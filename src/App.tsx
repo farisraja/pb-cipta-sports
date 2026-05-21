@@ -1077,46 +1077,46 @@ export default function App() {
                       initial={{ opacity: 0, y: 10 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
-                      className="p-5 rounded-2xl bg-surface-container/30 border border-primary/5 hover:border-primary/20 transition-all flex flex-col md:flex-row items-center gap-6 justify-between"
+                      className="p-4 md:p-5 rounded-2xl bg-surface-container/30 border border-primary/5 hover:border-primary/20 transition-all flex flex-col md:flex-row items-center gap-4 md:gap-6 justify-between"
                     >
-                      <div className="flex flex-col gap-1 min-w-32">
+                      <div className="flex flex-col gap-1 min-w-32 w-full md:w-auto text-center md:text-left">
                         <div className="font-display text-[10px] tracking-widest uppercase text-on-surface-variant/50">
                           {new Date(match.date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         {match.referee && (
-                          <div className="font-display text-[8px] tracking-[0.2em] uppercase text-primary/60 flex items-center gap-1">
+                          <div className="font-display text-[8px] tracking-[0.2em] uppercase text-primary/60 flex items-center justify-center md:justify-start gap-1">
                              <Scale size={10} /> Ref: {match.referee.name}
                           </div>
                         )}
                       </div>
 
-                      <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 w-full">
+                      <div className="flex-1 flex flex-col md:grid md:grid-cols-[1fr_auto_1fr] items-stretch md:items-center gap-2 md:gap-4 w-full">
                          {/* Alpha */}
-                         <div className={`p-4 rounded-xl flex items-center gap-4 justify-end bg-surface/50 border ${match.outcome === 'ALPHA' ? 'border-secondary/30 shadow-[0_0_15px_rgba(203,242,49,0.1)]' : 'border-primary/5'}`}>
-                            <div className="flex -space-x-3">
+                         <div className={`p-3 md:p-4 rounded-xl flex items-center gap-2 md:gap-4 justify-between md:justify-end bg-surface/50 border ${match.outcome === 'ALPHA' ? 'border-secondary/30 shadow-[0_0_15px_rgba(203,242,49,0.1)]' : 'border-primary/5'}`}>
+                            <div className="flex -space-x-2 md:-space-x-3 order-2 md:order-1">
                               {match.teamAlpha.map(p => (
-                                p && <img key={p.id} src={p.avatar} alt={p.name} className="w-8 h-8 rounded-full border border-surface/50 object-cover shadow-sm bg-surface-container" />
+                                p && <img key={p.id} src={p.avatar} alt={p.name} className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-surface/50 object-cover shadow-sm bg-surface-container" />
                               ))}
                             </div>
-                            <div className="flex flex-col items-end">
-                              <span className="font-display text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamAlpha[0]?.name} &</span>
-                              <span className="font-display text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamAlpha[1]?.name || 'TBD'}</span>
+                            <div className="flex flex-col items-start md:items-end order-1 md:order-2">
+                              <span className="font-display text-[9px] md:text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamAlpha[0]?.name} &</span>
+                              <span className="font-display text-[9px] md:text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamAlpha[1]?.name || 'TBD'}</span>
                             </div>
-                            {match.outcome === 'ALPHA' && <Trophy size={16} className="text-secondary" />}
+                            {match.outcome === 'ALPHA' && <Trophy size={14} className="text-secondary order-3" />}
                          </div>
                          
-                         <div className="font-display text-xs italic opacity-40 px-2 tracking-[0.2em]">VS</div>
+                         <div className="font-display text-[10px] md:text-xs italic opacity-40 px-2 tracking-[0.2em] text-center my-1 md:my-0">VS</div>
 
                          {/* Omega */}
-                         <div className={`p-4 rounded-xl flex items-center gap-4 justify-start bg-surface/50 border ${match.outcome === 'OMEGA' ? 'border-primary-container/30 shadow-[0_0_15px_rgba(0,245,255,0.1)]' : 'border-primary/5'}`}>
-                            {match.outcome === 'OMEGA' && <Trophy size={16} className="text-primary-container" />}
+                         <div className={`p-3 md:p-4 rounded-xl flex items-center gap-2 md:gap-4 justify-between md:justify-start bg-surface/50 border ${match.outcome === 'OMEGA' ? 'border-primary-container/30 shadow-[0_0_15px_rgba(0,245,255,0.1)]' : 'border-primary/5'}`}>
+                            {match.outcome === 'OMEGA' && <Trophy size={14} className="text-primary-container" />}
                             <div className="flex flex-col items-start">
-                              <span className="font-display text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamOmega[0]?.name} &</span>
-                              <span className="font-display text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamOmega[1]?.name || 'TBD'}</span>
+                              <span className="font-display text-[9px] md:text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamOmega[0]?.name} &</span>
+                              <span className="font-display text-[9px] md:text-[10px] tracking-widest text-on-surface uppercase font-bold">{match.teamOmega[1]?.name || 'TBD'}</span>
                             </div>
-                            <div className="flex -space-x-3">
+                            <div className="flex -space-x-2 md:-space-x-3">
                               {match.teamOmega.map(p => (
-                                p && <img key={p.id} src={p.avatar} alt={p.name} className="w-8 h-8 rounded-full border border-surface/50 object-cover shadow-sm bg-surface-container" />
+                                p && <img key={p.id} src={p.avatar} alt={p.name} className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-surface/50 object-cover shadow-sm bg-surface-container" />
                               ))}
                             </div>
                          </div>
@@ -1159,10 +1159,10 @@ export default function App() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-16 relative"
+              className="space-y-8 md:space-y-16 relative"
             >
               {/* Fixed Season Badge - Top Right */}
-              <div className="absolute top-4 right-0 z-20 flex items-center justify-center">
+              <div className="absolute top-0 right-0 md:top-4 z-20 flex items-center justify-center scale-[0.6] md:scale-100 origin-top-right">
                 {/* Orbiting shuttlecock */}
                 <div className="absolute w-44 h-44 animate-[spin_4s_linear_infinite] pointer-events-none">
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -1195,8 +1195,8 @@ export default function App() {
                 </div>
               </div>
               <div className="flex flex-col gap-8">
-                <div className="space-y-4">
-                  <h2 className="font-display text-6xl md:text-9xl text-on-surface font-black uppercase tracking-tighter leading-tight drop-shadow-2xl">
+                <div className="space-y-4 max-w-[70%] sm:max-w-none relative z-30">
+                  <h2 className="font-display text-5xl sm:text-6xl md:text-9xl text-on-surface font-black uppercase tracking-tighter leading-tight drop-shadow-2xl">
                     {t('global')} <span className="text-primary-container text-glow-primary" style={{textShadow: '0 0 20px rgba(0,245,255,0.8), 0 0 60px rgba(0,245,255,0.4), 0 0 120px rgba(0,245,255,0.2)'}}>{t('rankings')}</span>
                   </h2>
                   <p className="text-on-surface-variant/40 font-mono text-xs uppercase tracking-[0.4em] font-bold">{t('performance_metrics')}</p>
