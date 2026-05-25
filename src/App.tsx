@@ -31,7 +31,8 @@ import {
   Edit2,
   RefreshCw,
   Coffee,
-  Trash2
+  Trash2,
+  FileText
 } from 'lucide-react';
 import { PLAYERS, Player, Match } from './types.ts';
 import './i18n';
@@ -118,12 +119,14 @@ export default function App() {
     teamAlpha: Player[];
     teamOmega: Player[];
     referee: Player | null;
+    firstServe?: 'A' | 'B';
   } | null>(null);
 
   const [activeMatch, setActiveMatch] = useState<{
     teamAlpha: Player[];
     teamOmega: Player[];
     referee: Player | null;
+    firstServe?: 'A' | 'B';
   } | null>(null);
 
   const [matchHistory, setMatchHistory] = useState<Match[]>([]);
@@ -134,9 +137,27 @@ export default function App() {
   });
   const [lastMatchPlayerIds, setLastMatchPlayerIds] = useState<Set<string>>(new Set());
   const [restingPlayerIds, setRestingPlayerIds] = useState<Set<string>>(new Set());
+  const [pointsConfig, setPointsConfig] = useState<{ win: number, draw: number, loss: number }>(() => {
+    const saved = localStorage.getItem('pb_points_config');
+    return saved ? JSON.parse(saved) : { win: 3, draw: 1, loss: 0 };
+  });
+
   const [leagueLogo, setLeagueLogo] = useState<string>(() => {
     return localStorage.getItem('pb_league_logo') || '/logo.jpg';
   });
+
+  const getPlayerWDL = (playerId: string) => {
+    let w = 0, d = 0, l = 0;
+    matchHistory.forEach(m => {
+      const isAlpha = m.teamAlpha.some(p => p.id === playerId);
+      const isOmega = m.teamOmega.some(p => p.id === playerId);
+      if (!isAlpha && !isOmega) return;
+      if (m.outcome === 'DRAW') d++;
+      else if ((m.outcome === 'ALPHA' && isAlpha) || (m.outcome === 'OMEGA' && isOmega)) w++;
+      else l++;
+    });
+    return { w, d, l, total: w + d + l };
+  };
   const [notifications, setNotifications] = useState<{id: string; type: string; title: string; desc: string; time: string}[]>([]);
 
   const handleSavePlayer = async (data: any) => {
@@ -435,7 +456,8 @@ export default function App() {
       setShuffledResult({ 
         teamAlpha: bestScenario.teamAlpha, 
         teamOmega: bestScenario.teamOmega, 
-        referee 
+        referee,
+        firstServe: Math.random() > 0.5 ? 'A' : 'B'
       });
       setIsShuffling(false);
     }, 2000);
@@ -457,8 +479,8 @@ export default function App() {
         if (winningTeam === 'OMEGA' && isOmega) win = true;
         
         const newMatches = p.matches + 1;
-        // Points: Win=2, Draw=1, Loss=0
-        const pointsEarned = win ? 2 : (winningTeam === 'DRAW' ? 1 : 0);
+        // Points from config
+        const pointsEarned = win ? pointsConfig.win : (winningTeam === 'DRAW' ? pointsConfig.draw : pointsConfig.loss);
         const newPoints = p.points + pointsEarned;
         // Recalculate win rate
         const newWinRate = Math.round(((p.winRate * p.matches) + (win ? 100 : 0)) / newMatches);
@@ -1021,6 +1043,42 @@ export default function App() {
                 </div>
               </div>
 
+              {currentUser?.role === 'ADMIN' && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 overflow-hidden space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-primary/10 pb-4">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-display text-lg uppercase tracking-[0.2em] text-on-surface">Points Configuration</h3>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-6">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest">Win</label>
+                      <input type="number" value={pointsConfig.win} onChange={e => {
+                        const newConfig = { ...pointsConfig, win: Number(e.target.value) };
+                        setPointsConfig(newConfig);
+                        localStorage.setItem('pb_points_config', JSON.stringify(newConfig));
+                      }} className="bg-surface-container/50 border border-primary/10 rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50 transition-all w-24 font-display text-sm tracking-widest text-on-surface" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest">Draw</label>
+                      <input type="number" value={pointsConfig.draw} onChange={e => {
+                        const newConfig = { ...pointsConfig, draw: Number(e.target.value) };
+                        setPointsConfig(newConfig);
+                        localStorage.setItem('pb_points_config', JSON.stringify(newConfig));
+                      }} className="bg-surface-container/50 border border-primary/10 rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50 transition-all w-24 font-display text-sm tracking-widest text-on-surface" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest">Loss</label>
+                      <input type="number" value={pointsConfig.loss} onChange={e => {
+                        const newConfig = { ...pointsConfig, loss: Number(e.target.value) };
+                        setPointsConfig(newConfig);
+                        localStorage.setItem('pb_points_config', JSON.stringify(newConfig));
+                      }} className="bg-surface-container/50 border border-primary/10 rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50 transition-all w-24 font-display text-sm tracking-widest text-on-surface" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Match History */}
               <div className="glass-panel rounded-3xl p-8 overflow-hidden space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-primary/10 pb-6">
@@ -1238,14 +1296,14 @@ export default function App() {
 
               {/* Detailed Leaderboard */}
               <div className="glass-panel rounded-[3rem] overflow-hidden border border-white/5 shadow-[0_0_100px_rgba(0,0,0,0.4)]">
-                <div className="px-10 py-10 bg-surface-container/30 border-b border-white/5 flex justify-between items-center relative overflow-hidden">
+                <div className="px-5 py-5 md:px-10 md:py-10 bg-surface-container/30 border-b border-white/5 flex flex-wrap gap-4 justify-between items-center relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none" />
                   <div>
-                    <h3 className="font-display text-2xl uppercase tracking-[0.2em] text-on-surface font-bold leading-none">{t('full_leaderboard')}</h3>
+                    <h3 className="font-display text-xl md:text-2xl uppercase tracking-[0.2em] text-on-surface font-bold leading-none">{t('full_leaderboard')}</h3>
                     <p className="text-[10px] font-mono text-primary/40 mt-2 uppercase tracking-widest font-bold">Roster Manifest V.2.4</p>
                   </div>
-                  <button className="p-4 bg-surface-container rounded-2xl border border-white/5 text-on-surface-variant hover:text-primary hover:border-primary/30 hover:bg-white/10 transition-all shadow-lg active:scale-95">
-                    <Filter size={20} />
+                  <button className="p-3 md:p-4 bg-surface-container rounded-2xl border border-white/5 text-on-surface-variant hover:text-primary hover:border-primary/30 hover:bg-white/10 transition-all shadow-lg active:scale-95 shrink-0">
+                    <Filter size={16} className="md:w-5 md:h-5" />
                   </button>
                 </div>
                 
@@ -1257,6 +1315,7 @@ export default function App() {
                         <th className="px-10 py-8">{t('rank')}</th>
                         <th className="px-10 py-8">{t('athlete_profile')}</th>
                         <th className="px-10 py-8">{t('statistics')}</th>
+                        <th className="px-10 py-8">W/D/L</th>
                         <th className="px-10 py-8">{t('rating')}</th>
                         <th className="px-10 py-8 text-right font-bold">{t('points')}</th>
                       </tr>
@@ -1292,6 +1351,14 @@ export default function App() {
                               <div className="flex gap-1">
                                 {[1,2,3,4,5].map(dot => <div key={dot} className={`w-2 h-1 rounded-full ${dot <= (p.winRate/20) ? 'bg-secondary' : 'bg-white/5'}`} />)}
                               </div>
+                            </div>
+                          </td>
+                          <td className="px-10 py-10">
+                            <div className="font-mono text-xs text-on-surface-variant font-bold tracking-widest whitespace-nowrap">
+                              {(() => {
+                                const stats = getPlayerWDL(p.id);
+                                return <><span className="text-primary">{stats.total}G</span> <span className="text-secondary ml-1">{stats.w}W</span> <span className="text-on-surface-variant ml-1">{stats.d}D</span> <span className="text-error ml-1">{stats.l}L</span></>;
+                              })()}
                             </div>
                           </td>
                           <td className="px-10 py-10">
@@ -1344,10 +1411,17 @@ export default function App() {
                         </div>
                         <div>
                           <div className="font-display text-xs tracking-wider text-on-surface uppercase font-bold">{p.name}</div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <div className="text-[8px] text-on-surface-variant/40 font-display uppercase tracking-widest">{p.matches} MTS</div>
                             <div className="w-1 h-1 rounded-full bg-primary/20" />
                             <div className="text-[8px] text-primary/60 font-display uppercase tracking-widest font-bold">{p.winRate}% WR</div>
+                            <div className="w-1 h-1 rounded-full bg-primary/20" />
+                            <div className="text-[8px] text-on-surface-variant/60 font-mono tracking-widest font-bold">
+                              {(() => {
+                                const stats = getPlayerWDL(p.id);
+                                return <><span className="text-secondary">{stats.w}W</span> <span className="ml-1">{stats.d}D</span> <span className="text-error ml-1">{stats.l}L</span></>;
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1565,6 +1639,19 @@ export default function App() {
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {!isShuffling && shuffledResult && shuffledResult.firstServe && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-4 rounded-[1.5rem] bg-primary/5 border border-primary/20 flex items-center justify-center gap-3 shadow-lg"
+                    >
+                      <span className="text-xl">🏸</span>
+                      <div className="font-display text-sm uppercase tracking-widest text-on-surface font-bold">
+                        Shuttlecock Pertama: <span className={shuffledResult.firstServe === 'A' ? 'text-secondary text-glow-secondary' : 'text-primary-container text-glow-primary'}>TEAM {shuffledResult.firstServe}</span>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {!isShuffling && shuffledResult && (
                     <motion.button
@@ -1921,15 +2008,22 @@ function PlayerDetailsModal({
         initial={{ scale: 0.9, y: 40 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 40 }}
-        className="w-full max-w-5xl max-h-[90vh] glass-panel rounded-[3rem] overflow-hidden flex flex-col relative border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)]"
+        className="w-full max-w-5xl h-full md:h-auto md:max-h-[90vh] glass-panel md:rounded-[3rem] overflow-hidden flex flex-col relative border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)]"
       >
         {/* Header Decoration */}
         <div className="absolute top-0 inset-x-0 h-48 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 blur-[120px] pointer-events-none" />
         
-        <div className="p-8 md:p-12 flex flex-col md:flex-row justify-between items-center md:items-start gap-8 relative z-10">
-          <div className="flex flex-col md:flex-row items-center gap-10">
-            <div className="relative group">
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 md:top-8 md:right-8 p-2 bg-white/5 rounded-full border border-white/5 text-on-surface-variant hover:text-primary hover:bg-white/10 transition-all active:scale-90 z-50"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="p-8 md:p-12 flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
+          <div className="flex flex-col md:flex-row items-center gap-10 w-full">
+            <div className="relative group shrink-0">
               <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-secondary/50 rounded-[4rem] blur-xl opacity-20 group-hover:opacity-60 transition-opacity" />
               <img src={player.avatar} className="w-40 h-40 md:w-56 md:h-56 rounded-[3.5rem] object-cover border-4 border-white/10 shadow-2xl relative z-10" alt="" />
               <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-secondary text-on-secondary px-6 py-2 rounded-2xl font-display text-xl font-black shadow-[0_10px_30px_rgba(203,242,49,0.4)] z-20 whitespace-nowrap">
@@ -1951,12 +2045,6 @@ function PlayerDetailsModal({
               <p className="text-on-surface-variant/40 font-mono text-[9px] uppercase tracking-[0.4em] font-bold">South Jakarta Region</p>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-4 bg-white/5 rounded-full border border-white/5 text-on-surface-variant hover:text-primary hover:bg-white/10 transition-all active:scale-90"
-          >
-            <X size={32} />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 md:p-12 pt-0 space-y-16 custom-scrollbar relative z-10 text-on-surface">
@@ -2031,13 +2119,6 @@ function PlayerDetailsModal({
           </div>
         </div>
         
-        {/* Footer */}
-        <div className="p-10 bg-white/5 border-t border-white/5 flex justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent animate-pulse" />
-          <button className="relative z-10 px-12 py-4 bg-primary/10 border border-primary/20 rounded-full text-primary font-mono text-[10px] font-black uppercase tracking-[0.4em] hover:bg-primary hover:text-on-primary transition-all duration-500 shadow-2xl active:scale-95">
-            FULL CAREER STATS
-          </button>
-        </div>
       </motion.div>
     </motion.div>
   );
@@ -2104,6 +2185,7 @@ function ShufflingParticles() {
 
 function AlertsModal({ onClose, notifications }: { onClose: () => void, notifications: {id: string; type: string; title: string; desc: string; time: string}[] }) {
   const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'alerts' | 'rules'>('alerts');
 
   return (
     <motion.div
@@ -2116,49 +2198,100 @@ function AlertsModal({ onClose, notifications }: { onClose: () => void, notifica
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="w-full max-w-md bg-surface-container rounded-3xl border border-primary/20 shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-md max-h-[90vh] bg-surface-container rounded-3xl border border-primary/20 shadow-2xl overflow-hidden flex flex-col"
       >
         <div className="p-6 border-b border-primary/10 flex justify-between items-center bg-surface-container-high/50">
-          <div className="flex items-center gap-3">
-            <Bell className="text-primary-container" size={20} />
-            <h2 className="font-display text-lg uppercase tracking-widest text-on-surface">{t('live_alerts')}</h2>
-            {notifications.length > 0 && (
-              <span className="px-2 py-0.5 bg-secondary/20 text-secondary text-[9px] font-mono font-bold rounded-full">{notifications.length}</span>
-            )}
+          <div className="flex bg-surface-container-high p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('alerts')}
+              className={`px-4 py-2 rounded-lg font-display text-xs uppercase tracking-widest font-bold transition-all ${
+                activeTab === 'alerts' 
+                  ? 'bg-primary-container text-on-primary-container shadow-sm' 
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Bell size={14} /> Alerts
+                {notifications.length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-error/20 text-error text-[8px] rounded-md">{notifications.length}</span>
+                )}
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('rules')}
+              className={`px-4 py-2 rounded-lg font-display text-xs uppercase tracking-widest font-bold transition-all ${
+                activeTab === 'rules' 
+                  ? 'bg-secondary text-on-secondary-container shadow-sm' 
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={14} /> Rules
+              </div>
+            </button>
           </div>
           <button onClick={onClose} className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-on-surface-variant hover:text-on-surface transition-colors border border-white/5 active:scale-90">
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[60vh] space-y-4">
-          {notifications.length === 0 ? (
-            <div className="py-12 text-center text-on-surface-variant/40 font-mono text-xs uppercase tracking-widest border border-dashed border-white/10 rounded-2xl">
-              Belum ada notifikasi
-            </div>
-          ) : (
-            notifications.map(n => (
-              <div key={n.id} className={`p-4 rounded-2xl flex gap-4 items-start border ${
-                n.type === 'match' ? 'bg-secondary/5 border-secondary/10' :
-                n.type === 'system' ? 'bg-primary/5 border-primary/10' :
-                'bg-surface/30 border-outline/10'
-              }`}>
-                <div className={`p-2 rounded-lg shrink-0 mt-1 ${
-                  n.type === 'match' ? 'bg-secondary/20 text-secondary' :
-                  n.type === 'system' ? 'bg-primary-container/20 text-primary-container' :
-                  'bg-surface-container-high text-on-surface-variant'
-                }`}>
-                  {n.type === 'match' ? <Flag size={16} /> : n.type === 'system' ? <Zap size={16} /> : <Trophy size={16} />}
-                </div>
-                <div>
-                  <div className="font-display text-xs tracking-widest text-on-surface uppercase mb-1">{n.title}</div>
-                  <p className="text-[10px] text-on-surface-variant/80 font-sans leading-relaxed">{n.desc}</p>
-                  <span className={`text-[8px] uppercase tracking-[0.2em] mt-2 block ${
-                    n.type === 'match' ? 'text-secondary/40' : 'text-primary/40'
-                  }`}>{n.time}</span>
-                </div>
+        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+          {activeTab === 'alerts' ? (
+            notifications.length === 0 ? (
+              <div className="py-12 text-center text-on-surface-variant/40 font-mono text-xs uppercase tracking-widest border border-dashed border-white/10 rounded-2xl">
+                Belum ada notifikasi
               </div>
-            ))
+            ) : (
+              notifications.map(n => (
+                <div key={n.id} className={`p-4 rounded-2xl flex gap-4 items-start border ${
+                  n.type === 'match' ? 'bg-secondary/5 border-secondary/10' :
+                  n.type === 'system' ? 'bg-primary/5 border-primary/10' :
+                  'bg-surface/30 border-outline/10'
+                }`}>
+                  <div className={`p-2 rounded-lg shrink-0 mt-1 ${
+                    n.type === 'match' ? 'bg-secondary/20 text-secondary' :
+                    n.type === 'system' ? 'bg-primary-container/20 text-primary-container' :
+                    'bg-surface-container-high text-on-surface-variant'
+                  }`}>
+                    {n.type === 'match' ? <Flag size={16} /> : n.type === 'system' ? <Zap size={16} /> : <Trophy size={16} />}
+                  </div>
+                  <div>
+                    <div className="font-display text-xs tracking-widest text-on-surface uppercase mb-1">{n.title}</div>
+                    <p className="text-[10px] text-on-surface-variant/80 font-sans leading-relaxed">{n.desc}</p>
+                    <span className={`text-[8px] uppercase tracking-[0.2em] mt-2 block ${
+                      n.type === 'match' ? 'text-secondary/40' : 'text-primary/40'
+                    }`}>{n.time}</span>
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-surface/50 border border-white/5">
+                <h4 className="font-display text-xs text-secondary uppercase tracking-widest font-bold mb-2">1. Sistem Poin</h4>
+                <ul className="text-[10px] text-on-surface-variant/80 space-y-2 list-disc pl-4 font-sans leading-relaxed">
+                  <li>Menang mendapatkan 3 poin.</li>
+                  <li>Seri mendapatkan 1 poin.</li>
+                  <li>Kalah mendapatkan 0 poin.</li>
+                </ul>
+              </div>
+              <div className="p-4 rounded-2xl bg-surface/50 border border-white/5">
+                <h4 className="font-display text-xs text-primary uppercase tracking-widest font-bold mb-2">2. Team Shuffle</h4>
+                <ul className="text-[10px] text-on-surface-variant/80 space-y-2 list-disc pl-4 font-sans leading-relaxed">
+                  <li>Team shuffle menggunakan algoritma rating.</li>
+                  <li>Minimal 4 pemain aktif untuk shuffle.</li>
+                  <li>Shuttlecock pertama ditentukan secara otomatis.</li>
+                </ul>
+              </div>
+              <div className="p-4 rounded-2xl bg-surface/50 border border-white/5">
+                <h4 className="font-display text-xs text-secondary uppercase tracking-widest font-bold mb-2">3. Etika Pertandingan</h4>
+                <ul className="text-[10px] text-on-surface-variant/80 space-y-2 list-disc pl-4 font-sans leading-relaxed">
+                  <li>Pemain harus datang tepat waktu.</li>
+                  <li>Keputusan wasit adalah mutlak.</li>
+                  <li>Jaga kebersihan lapangan dan sportivitas.</li>
+                </ul>
+              </div>
+            </div>
           )}
         </div>
       </motion.div>
