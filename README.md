@@ -26,7 +26,7 @@ Web ini dirancang dan dikembangkan secara eksklusif oleh:
 
 - **Nama**: Faris Raja Ardana
 - **Email**: farisraja003@gmail.com
-- **No. Telepon**: 085881971927
+- **No. Telepon**: 088988700804
 
 ### About Me
 Saya adalah lulusan **Ilmu Komputer, Universitas Pakuan Bogor**. Saya sangat antusias di bidang *Software Engineering* dan pengembangan antarmuka web yang modern. Aplikasi ini saya buat sebagai wujud penerapan logika algoritma (terutama pada fitur *matchmaking*) serta perancangan *User Experience* (UX) yang sangat interaktif dan efisien untuk digunakan secara langsung di lapangan pertandingan.
