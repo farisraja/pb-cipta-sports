@@ -1,0 +1,270 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: players
+// Document ID: {playerId} (UUID, auto-generated ID, or user UID)
+// Fields:
+//   - user_id: string (optional, 1-128 chars) - Associated Firebase Auth UID
+//   - role: string (required, 'ADMIN' | 'USER') - Authorization tier
+//   - name: string (required, 1-100 chars) - Player's display name
+//   - rank: string (required, 1-20 chars) - Tier badge or seed (e.g., 'Neo', '01')
+//   - avatar: string (required, 1-500 chars) - Profile picture URL
+//   - win_rate: number (required, 0-100) - Player win percentage
+//   - points: number (required, 0-1,000,000) - Total league points
+//   - matches: number (required, 0-100,000) - Total matches played
+//   - smash_power: number (required, 0-100) - Smash attribute rating
+//   - agility_rating: number (required, 0-100) - Agility attribute rating
+//   - stamina: number (optional, 0-100) - Stamina attribute rating
+//   - created_at: string | timestamp (optional, immutable) - Creation timestamp
+//
+// Collection: matches
+// Document ID: {matchId} (UUID or auto-generated ID)
+// Fields:
+//   - date: string | timestamp (optional) - Match played timestamp
+//   - team_alpha: list (required, 1-10 elements) - Array of player records in Team Alpha
+//   - team_omega: list (required, 1-10 elements) - Array of player records in Team Omega
+//   - referee: map | string | null (optional) - Referee player details
+//   - outcome: string (required, 'ALPHA' | 'OMEGA' | 'DRAW') - Match result
+//   - created_at: string | timestamp (optional) - Record creation timestamp
+//
+// Collection: league_settings
+// Document ID: {settingId} (e.g., 'config' or '1')
+// Fields:
+//   - current_season: string (required, 1-50 chars) - Active season title
+//   - id: int | string (optional) - Configuration numerical/text ID
+//   - created_at: string | timestamp (optional) - Settings creation timestamp
+//   - updated_at: string | timestamp (optional) - Settings modification timestamp
+//
+// Collection: stat_requests
+// Document ID: {requestId} (UUID or auto-generated ID)
+// Fields:
+//   - player_id: string (required, 1-128 chars) - Target player document ID
+//   - matches: number (required, 0-100,000) - Proposed matches count
+//   - win_rate: number (required, 0-100) - Proposed win percentage
+//   - points: number (required, 0-1,000,000) - Proposed total points
+//   - smash_power: number (required, 0-100) - Proposed smash rating
+//   - agility_rating: number (required, 0-100) - Proposed agility rating
+//   - stamina: number (required, 0-100) - Proposed stamina rating
+//   - status: string (required, 'PENDING' | 'APPROVED' | 'REJECTED') - Review lifecycle state
+//   - created_at: string | timestamp (optional, immutable) - Request submission time
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Determine admin status safely:
+    // 1. Auth custom claims (token.role == 'ADMIN' or token.admin == true)
+    // 2. Verified bootstrap admin email
+    // 3. Document lookup in /players/{uid} where role == 'ADMIN'
+    function isAdmin() {
+      return isAuthenticated() && (
+        ('role' in request.auth.token && request.auth.token.role == 'ADMIN') ||
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('email' in request.auth.token && request.auth.token.email in ['farisrajaardana@gmail.com']) ||
+        (exists(/databases/$(database)/documents/players/$(request.auth.uid)) &&
+         'role' in get(/databases/$(database)/documents/players/$(request.auth.uid)).data &&
+         get(/databases/$(database)/documents/players/$(request.auth.uid)).data.role == 'ADMIN')
+      );
+    }
+
+    // Check if a value is integer or float (numeric)
+    function isNumeric(val) {
+      return val is int || val is float;
+    }
+
+    // Check valid timestamp or ISO date string with length bounds
+    function isValidDate(val) {
+      return (val is timestamp) ||
+             (val is string && val.size() >= 1 && val.size() <= 40);
+    }
+
+    // ===============================================================
+    // Domain Validators (Validator Function Pattern)
+    // Called on BOTH create and update
+    // ===============================================================
+
+    function isValidPlayer(data) {
+      return data.keys().hasOnly(['user_id', 'role', 'name', 'rank', 'avatar', 'win_rate', 'points', 'matches', 'smash_power', 'agility_rating', 'stamina', 'created_at']) &&
+             data.keys().hasAll(['name', 'rank', 'avatar', 'win_rate', 'points', 'matches', 'smash_power', 'agility_rating', 'role']) &&
+             data.role in ['ADMIN', 'USER'] &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.rank is string && data.rank.size() >= 1 && data.rank.size() <= 20 &&
+             data.avatar is string && data.avatar.size() >= 1 && data.avatar.size() <= 500 &&
+             isNumeric(data.win_rate) && data.win_rate >= 0 && data.win_rate <= 100 &&
+             isNumeric(data.points) && data.points >= 0 && data.points <= 1000000 &&
+             isNumeric(data.matches) && data.matches >= 0 && data.matches <= 100000 &&
+             isNumeric(data.smash_power) && data.smash_power >= 0 && data.smash_power <= 100 &&
+             isNumeric(data.agility_rating) && data.agility_rating >= 0 && data.agility_rating <= 100 &&
+             (!('stamina' in data) || (isNumeric(data.stamina) && data.stamina >= 0 && data.stamina <= 100)) &&
+             (!('user_id' in data) || (data.user_id is string && data.user_id.size() >= 1 && data.user_id.size() <= 128)) &&
+             (!('created_at' in data) || isValidDate(data.created_at));
+    }
+
+    function isValidMatch(data) {
+      return data.keys().hasOnly(['id', 'date', 'team_alpha', 'team_omega', 'referee', 'outcome', 'created_at']) &&
+             data.keys().hasAll(['team_alpha', 'team_omega', 'outcome']) &&
+             data.outcome in ['ALPHA', 'OMEGA', 'DRAW'] &&
+             data.team_alpha is list && data.team_alpha.size() >= 1 && data.team_alpha.size() <= 10 &&
+             data.team_omega is list && data.team_omega.size() >= 1 && data.team_omega.size() <= 10 &&
+             (!('referee' in data) || data.referee == null || data.referee is map || (data.referee is string && data.referee.size() <= 100)) &&
+             (!('date' in data) || isValidDate(data.date)) &&
+             (!('created_at' in data) || isValidDate(data.created_at)) &&
+             (!('id' in data) || (data.id is string && data.id.size() <= 128));
+    }
+
+    function isValidLeagueSettings(data) {
+      return data.keys().hasOnly(['id', 'current_season', 'created_at', 'updated_at']) &&
+             data.keys().hasAll(['current_season']) &&
+             data.current_season is string &&
+             data.current_season.size() >= 1 &&
+             data.current_season.size() <= 50 &&
+             (!('id' in data) || data.id is int || data.id is string) &&
+             (!('created_at' in data) || isValidDate(data.created_at)) &&
+             (!('updated_at' in data) || isValidDate(data.updated_at));
+    }
+
+    function isValidStatRequest(data) {
+      return data.keys().hasOnly(['id', 'player_id', 'matches', 'win_rate', 'points', 'smash_power', 'agility_rating', 'stamina', 'status', 'created_at']) &&
+             data.keys().hasAll(['player_id', 'matches', 'win_rate', 'points', 'smash_power', 'agility_rating', 'stamina', 'status']) &&
+             data.player_id is string && data.player_id.size() >= 1 && data.player_id.size() <= 128 &&
+             isNumeric(data.matches) && data.matches >= 0 && data.matches <= 100000 &&
+             isNumeric(data.win_rate) && data.win_rate >= 0 && data.win_rate <= 100 &&
+             isNumeric(data.points) && data.points >= 0 && data.points <= 1000000 &&
+             isNumeric(data.smash_power) && data.smash_power >= 0 && data.smash_power <= 100 &&
+             isNumeric(data.agility_rating) && data.agility_rating >= 0 && data.agility_rating <= 100 &&
+             isNumeric(data.stamina) && data.stamina >= 0 && data.stamina <= 100 &&
+             data.status in ['PENDING', 'APPROVED', 'REJECTED'] &&
+             (!('id' in data) || (data.id is string && data.id.size() <= 128)) &&
+             (!('created_at' in data) || isValidDate(data.created_at));
+    }
+
+    // ===============================================================
+    // Rules: Default Deny Root
+    // ===============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Collection: players
+    // ===============================================================
+
+    match /players/{playerId} {
+      // Public read for league leaderboards, statistics, and player profiles
+      allow read: if true;
+
+      // Create: Authenticated users creating their own profile ('USER' role only), or Admin
+      allow create: if isAuthenticated() &&
+        isValidPlayer(request.resource.data) &&
+        (
+          // Non-admin can only create as 'USER' bound to their auth UID
+          (!isAdmin() &&
+           request.resource.data.role == 'USER' &&
+           ('user_id' in request.resource.data) &&
+           request.resource.data.user_id == request.auth.uid) ||
+          // Admin can create any player profile
+          isAdmin()
+        );
+
+      // Update:
+      // - Admin can update any player fields
+      // - Authenticated users can update if:
+      //   1) Profile owner updating their own record, OR
+      //   2) Game score recording (updating match outcome points/matches/win_rate/rank)
+      // Non-admins can NEVER alter role, user_id, or created_at
+      allow update: if isAuthenticated() &&
+        isValidPlayer(request.resource.data) &&
+        (
+          isAdmin() ||
+          (
+            // Immutable fields for non-admin updates
+            request.resource.data.role == resource.data.role &&
+            (!('user_id' in resource.data) || request.resource.data.user_id == resource.data.user_id) &&
+            (!('created_at' in resource.data) || request.resource.data.created_at == resource.data.created_at) &&
+            (
+              // Case 1: Owner updating own profile
+              ('user_id' in resource.data && resource.data.user_id == request.auth.uid) ||
+              // Case 2: Match result update (strictly limited to match score fields)
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'matches', 'win_rate', 'rank'])
+            )
+          )
+        );
+
+      // Delete: Admin only
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Collection: matches
+    // ===============================================================
+
+    match /matches/{matchId} {
+      // Public read for league match logs
+      allow read: if true;
+
+      // Create: Authenticated players / referee logging a completed match
+      allow create: if isAuthenticated() && isValidMatch(request.resource.data);
+
+      // Update: Admin only to modify recorded matches
+      allow update: if isAdmin() && isValidMatch(request.resource.data);
+
+      // Delete: Admin only
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Collection: league_settings
+    // ===============================================================
+
+    match /league_settings/{settingId} {
+      // Public read for current season display
+      allow read: if true;
+
+      // Write: Authenticated users / league organizers can configure current season
+      allow create: if isAuthenticated() && isValidLeagueSettings(request.resource.data);
+      allow update: if isAuthenticated() && isValidLeagueSettings(request.resource.data);
+
+      // Delete: Admin only
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Collection: stat_requests
+    // ===============================================================
+
+    match /stat_requests/{requestId} {
+      // Read: Authenticated users can view pending / historical stat update requests
+      allow read: if isAuthenticated();
+
+      // Create: Authenticated users can submit a stat request (must start as 'PENDING')
+      allow create: if isAuthenticated() &&
+        isValidStatRequest(request.resource.data) &&
+        (request.resource.data.status == 'PENDING' || isAdmin());
+
+      // Update: Admin only to approve or reject requests
+      allow update: if isAdmin() &&
+        isValidStatRequest(request.resource.data) &&
+        request.resource.data.player_id == resource.data.player_id &&
+        (!('created_at' in resource.data) || request.resource.data.created_at == resource.data.created_at);
+
+      // Delete: Admin only
+      allow delete: if isAdmin();
+    }
+  }
+}

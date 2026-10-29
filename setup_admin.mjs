@@ -1,23 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://xnpdbwvsjugdzlxjmaer.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhucGRid3ZzanVnZHpseGptYWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjY3NDksImV4cCI6MjA5NDg0Mjc0OX0.yHuNTHcLtVTXrbpUQ2CryYUHPFXfCmDDA9i46t1lrck';
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://xnpdbwvsjugdzlxjmaer.supabase.co';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhucGRid3ZzanVnZHpseGptYWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjY3NDksImV4cCI6MjA5NDg0Mjc0OX0.yHuNTHcLtVTXrbpUQ2CryYUHPFXfCmDDA9i46t1lrck';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function setupAdmin() {
   console.log('Registering/Login admin account...');
   
+  const adminEmail = process.env.ADMIN_EMAIL || 'farisrajaardana@gmail.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'Tengsaw080203';
+  const adminName = process.env.ADMIN_NAME || 'farisraja';
+
   let { data: authData, error: authError } = await supabase.auth.signUp({
-    email: 'farisrajaardana@gmail.com',
-    password: 'Tengsaw080203',
+    email: adminEmail,
+    password: adminPassword,
   });
 
   if (authError || !authData.user) {
     console.log('SignUp returned null or error, trying SignIn...');
     const loginResult = await supabase.auth.signInWithPassword({
-      email: 'farisrajaardana@gmail.com',
-      password: 'Tengsaw080203',
+      email: adminEmail,
+      password: adminPassword,
     });
     authData = loginResult.data;
     authError = loginResult.error;
@@ -44,10 +48,10 @@ async function setupAdmin() {
     return;
   }
 
-  // 2. Insert into players table with ADMIN role
+  // Insert into players table with ADMIN role
   const { error: dbError } = await supabase.from('players').insert({
     user_id: userId,
-    name: 'farisraja',
+    name: adminName,
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
     rank: 'ADMIN',
     role: 'ADMIN',

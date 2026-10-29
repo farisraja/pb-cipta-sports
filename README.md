@@ -2,6 +2,16 @@
 
 ![PB Cipta Logo](public/logo.jpg)
 
+## Demo Aplikasi
+
+https://github.com/farisraja/pb-cipta-sports/raw/master/assets/PB_CIPTA_Badminton_League_Product_Demo.mp4
+
+<video src="assets/PB_CIPTA_Badminton_League_Product_Demo.mp4" controls="controls" width="100%"></video>
+
+> 🎬 *Video demo produk dapat dilihat secara langsung di atas atau melalui tautan berikut:* [Download / Tonton Video](assets/PB_CIPTA_Badminton_League_Product_Demo.mp4)
+
+---
+
 ## Deskripsi
 **PB.CIPTA BADMINTON LEAGUE** adalah aplikasi web modern yang dirancang khusus untuk mengelola kompetisi, peringkat, dan pembagian tim dalam olahraga bulu tangkis secara profesional dan adil. Aplikasi ini ditujukan untuk mengakomodasi kegiatan turnamen atau liga jangka panjang dengan pendataan statistik otomatis.
 
@@ -18,7 +28,7 @@
 ## Teknologi yang Digunakan
 - **Frontend Framework**: [React.js](https://react.dev/) dengan *build tool* [Vite](https://vitejs.dev/)
 - **Styling & UI**: [Tailwind CSS](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/) (Animasi), Lucide React (Ikon)
-- **Backend & Database**: [Supabase](https://supabase.com/) (PostgreSQL & Authentication)
+- **Backend & Database**: [Google Firebase](https://firebase.google.com/) (Cloud Firestore & Authentication)
 - **Bahasa Pemrograman**: TypeScript (TSX)
 
 ## Pembuat Web

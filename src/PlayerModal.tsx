@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { X, User, Image, Save, Trophy, Activity, Zap, Shield } from 'lucide-react';
 import { Player } from './types';
 import { useTranslation } from 'react-i18next';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from './lib/firebase';
 
 interface PlayerModalProps {
   player: Player | 'NEW' | null;
@@ -163,8 +165,7 @@ export default function PlayerModal({ player, isAdmin, onClose, onSave }: Player
               {!isNew && isAdmin && (
                 <button type="button" onClick={async () => {
                   if (window.confirm('Apakah Anda yakin ingin menghapus pemain ini?')) {
-                    // @ts-ignore
-                    await import('./lib/supabase').then(m => m.supabase.from('players').delete().eq('id', player.id));
+                    await deleteDoc(doc(db, 'players', player.id));
                     window.location.reload();
                   }
                 }} className="px-4 py-2 rounded-xl text-[10px] font-mono font-bold uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20">

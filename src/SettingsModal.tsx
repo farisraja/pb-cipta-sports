@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { X, Save, Trash2, Check, RefreshCw } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { db } from './lib/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  getDocs, 
+  doc, 
+  setDoc, 
+  updateDoc 
+} from 'firebase/firestore';
 import { Player } from './types';
 
 interface SettingsModalProps {
@@ -22,20 +32,41 @@ export default function SettingsModal({ onClose, currentSeason }: SettingsModalP
   }, []);
 
   const fetchRequests = async () => {
-    const [{ data: reqData }, { data: pData }] = await Promise.all([
-      supabase.from('stat_requests').select('*').eq('status', 'PENDING').order('created_at', { ascending: false }),
-      supabase.from('players').select('*')
-    ]);
-    if (reqData) setStatRequests(reqData);
-    if (pData) setPlayers(pData);
+    try {
+      const q = query(
+        collection(db, 'stat_requests'), 
+        where('status', '==', 'PENDING')
+      );
+      const [reqSnapshot, pSnapshot] = await Promise.all([
+        getDocs(q),
+        getDocs(collection(db, 'players'))
+      ]);
+
+      const reqData = reqSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const pData = pSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+
+      // Sort in JS to avoid composite index requirement
+      reqData.sort((a: any, b: any) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+      setStatRequests(reqData);
+      setPlayers(pData);
+    } catch (err) {
+      console.error('Error fetching stat requests:', err);
+    }
   };
 
   const handleSaveSeason = async () => {
     setIsSavingSeason(true);
-    // Always save to localStorage as primary
     localStorage.setItem('pb_current_season', seasonName);
-    // Try to save to DB (may fail due to RLS, that's OK)
-    await supabase.from('league_settings').upsert({ id: 1, current_season: seasonName });
+    try {
+      await setDoc(doc(db, 'league_settings', '1'), { 
+        id: 1, 
+        current_season: seasonName,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Could not save season to Firestore:', err);
+    }
     setIsSavingSeason(false);
     window.location.reload();
   };
@@ -43,36 +74,59 @@ export default function SettingsModal({ onClose, currentSeason }: SettingsModalP
   const handleResetSeason = async () => {
     if (window.confirm('PERINGATAN: Ini akan mereset poin, match, dan win rate SEMUA pemain menjadi 0. Smash power, agility, dan stamina tidak akan berubah. Lanjutkan?')) {
       setIsResetting(true);
-      await supabase.from('players').update({ points: 0, matches: 0, win_rate: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+      try {
+        const pSnapshot = await getDocs(collection(db, 'players'));
+        const updatePromises = pSnapshot.docs.map(d => 
+          updateDoc(doc(db, 'players', d.id), {
+            points: 0,
+            matches: 0,
+            win_rate: 0
+          })
+        );
+        await Promise.all(updatePromises);
+      } catch (err) {
+        console.error('Error resetting players:', err);
+      }
       setIsResetting(false);
       window.location.reload();
     }
   };
 
   const handleApproveRequest = async (req: any) => {
-    // Update player
-    await supabase.from('players').update({
-      matches: req.matches,
-      win_rate: req.win_rate,
-      points: req.points,
-      smash_power: req.smash_power,
-      agility_rating: req.agility_rating,
-      stamina: req.stamina
-    }).eq('id', req.player_id);
+    try {
+      // Update player
+      await updateDoc(doc(db, 'players', req.player_id), {
+        matches: req.matches,
+        win_rate: req.win_rate,
+        points: req.points,
+        smash_power: req.smash_power,
+        agility_rating: req.agility_rating,
+        stamina: req.stamina
+      });
 
-    // Update request
-    await supabase.from('stat_requests').update({ status: 'APPROVED' }).eq('id', req.id);
-    
-    // Remove from UI
-    setStatRequests(prev => prev.filter(r => r.id !== req.id));
-    alert('Statistik disetujui!');
-    window.location.reload(); // Refresh to update main screen
+      // Update request
+      await updateDoc(doc(db, 'stat_requests', req.id), {
+        status: 'APPROVED'
+      });
+      
+      setStatRequests(prev => prev.filter(r => r.id !== req.id));
+      alert('Statistik disetujui!');
+      window.location.reload();
+    } catch (err: any) {
+      alert('Gagal menyetujui update: ' + err.message);
+    }
   };
 
   const handleRejectRequest = async (reqId: string) => {
     if (window.confirm('Tolak pengajuan update statistik ini?')) {
-      await supabase.from('stat_requests').update({ status: 'REJECTED' }).eq('id', reqId);
-      setStatRequests(prev => prev.filter(r => r.id !== reqId));
+      try {
+        await updateDoc(doc(db, 'stat_requests', reqId), {
+          status: 'REJECTED'
+        });
+        setStatRequests(prev => prev.filter(r => r.id !== reqId));
+      } catch (err: any) {
+        alert('Gagal menolak update: ' + err.message);
+      }
     }
   };
 
@@ -166,7 +220,7 @@ export default function SettingsModal({ onClose, currentSeason }: SettingsModalP
                         </div>
                         <div className="p-2 bg-surface/30 rounded text-center">
                           <p className="text-[8px] text-on-surface-variant uppercase tracking-widest mb-1">Win Rate</p>
-                          <p className="text-on-surface font-mono text-xs">{player.winRate || player.win_rate || 0}% <span className="opacity-40">➔</span> {req.win_rate}%</p>
+                          <p className="text-on-surface font-mono text-xs">{player.winRate || (player as any).win_rate || 0}% <span className="opacity-40">➔</span> {req.win_rate}%</p>
                         </div>
                       </div>
                       

@@ -37,9 +37,18 @@ import {
 import { PLAYERS, Player, Match } from './types.ts';
 import './i18n';
 import { useTranslation } from 'react-i18next';
-import { supabase } from './lib/supabase';
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc 
+} from 'firebase/firestore';
 import PlayerModal from './PlayerModal';
-import { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import SettingsModal from './SettingsModal';
 
@@ -78,7 +87,7 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [activeScreen, setActiveScreen] = useState<Screen>('Rankings');
   
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<{ user: { id: string; email?: string | null } } | null>(null);
   const [currentUser, setCurrentUser] = useState<Player | null>(null);
   const [currentSeason, setCurrentSeason] = useState<string>(() => {
     return localStorage.getItem('pb_current_season') || 'Season 1';
@@ -90,17 +99,15 @@ export default function App() {
   };
 
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setSession({ user: { id: user.uid, email: user.email } });
+      } else {
+        setSession(null);
+      }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   React.useEffect(() => {
@@ -165,19 +172,21 @@ export default function App() {
 
     if (!isAdmin) {
       if (editingPlayer && editingPlayer !== 'NEW') {
-        await supabase.from('players').update({
+        await updateDoc(doc(db, 'players', editingPlayer.id), {
           name: data.name,
           avatar: data.avatar
-        }).eq('id', editingPlayer.id);
+        });
 
-        await supabase.from('stat_requests').insert({
+        await addDoc(collection(db, 'stat_requests'), {
           player_id: editingPlayer.id,
           matches: data.matches,
           win_rate: data.winRate,
           points: data.points,
           smash_power: data.smashPower,
           agility_rating: data.agilityRating,
-          stamina: data.stamina
+          stamina: data.stamina,
+          status: 'PENDING',
+          created_at: new Date().toISOString()
         });
         
         setPlayers(prev => prev.map(p => p.id === editingPlayer.id ? { ...p, name: data.name, avatar: data.avatar } : p));
@@ -188,41 +197,41 @@ export default function App() {
     }
 
     if (editingPlayer === 'NEW') {
-      const { data: newData } = await supabase.from('players').insert({
+      const docRef = await addDoc(collection(db, 'players'), {
         name: data.name,
         avatar: data.avatar,
         rank: 'Neo',
+        role: 'USER',
         win_rate: data.winRate,
         points: data.points,
         matches: data.matches,
         smash_power: data.smashPower,
         agility_rating: data.agilityRating,
-        stamina: data.stamina
-      }).select().single();
+        stamina: data.stamina,
+        created_at: new Date().toISOString()
+      });
       
-      if (newData) {
-        const newPlayer: Player = {
-          id: newData.id,
-          name: newData.name,
-          rank: newData.rank,
-          avatar: newData.avatar,
-          winRate: newData.win_rate,
-          points: newData.points,
-          matches: newData.matches,
-          smashPower: newData.smash_power,
-          agilityRating: newData.agility_rating,
-          stamina: newData.stamina
-        };
-        const updatedPlayers = [...players, newPlayer].sort((a, b) => b.points - a.points);
-        const rankedPlayers = updatedPlayers.map((p, i) => ({
-          ...p,
-          rank: String(i + 1).padStart(2, '0')
-        }));
-        setPlayers(rankedPlayers);
-        setActivePool(rankedPlayers.map(p => ({ ...p, selected: true })));
-      }
+      const newPlayer: Player = {
+        id: docRef.id,
+        name: data.name,
+        rank: 'Neo',
+        avatar: data.avatar,
+        winRate: data.winRate,
+        points: data.points,
+        matches: data.matches,
+        smashPower: data.smashPower,
+        agilityRating: data.agilityRating,
+        stamina: data.stamina
+      };
+      const updatedPlayers = [...players, newPlayer].sort((a, b) => b.points - a.points);
+      const rankedPlayers = updatedPlayers.map((p, i) => ({
+        ...p,
+        rank: String(i + 1).padStart(2, '0')
+      }));
+      setPlayers(rankedPlayers);
+      setActivePool(rankedPlayers.map(p => ({ ...p, selected: true })));
     } else if (editingPlayer) {
-      await supabase.from('players').update({
+      await updateDoc(doc(db, 'players', editingPlayer.id), {
         name: data.name,
         avatar: data.avatar,
         win_rate: data.winRate,
@@ -231,7 +240,7 @@ export default function App() {
         smash_power: data.smashPower,
         agility_rating: data.agilityRating,
         stamina: data.stamina
-      }).eq('id', editingPlayer.id);
+      });
       
       const updatedPlayers = players.map(p => p.id === editingPlayer.id ? { 
         ...p, 
@@ -258,45 +267,51 @@ export default function App() {
 
   React.useEffect(() => {
     const fetchData = async () => {
-      const [{ data: pData }, { data: mData }, { data: sData }] = await Promise.all([
-        supabase.from('players').select('*').order('points', { ascending: false }),
-        supabase.from('matches').select('*').order('date', { ascending: false }),
-        supabase.from('league_settings').select('current_season').eq('id', 1).single()
-      ]);
-      
-      if (sData?.current_season) {
-        updateCurrentSeason(sData.current_season);
-      }
+      try {
+        const [pSnapshot, mSnapshot, sDoc] = await Promise.all([
+          getDocs(collection(db, 'players')),
+          getDocs(collection(db, 'matches')),
+          getDoc(doc(db, 'league_settings', '1'))
+        ]);
+        
+        if (sDoc.exists() && sDoc.data()?.current_season) {
+          updateCurrentSeason(sDoc.data().current_season);
+        }
 
-      if (pData) {
-        const formattedPlayers = pData.map((p, i) => ({
+        const rawPlayers = pSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        rawPlayers.sort((a, b) => (b.points || 0) - (a.points || 0));
+
+        const formattedPlayers = rawPlayers.map((p, i) => ({
           id: p.id,
           user_id: p.user_id,
-          role: p.role,
+          role: p.role || 'USER',
           name: p.name,
           rank: String(i + 1).padStart(2, '0'),
           avatar: p.avatar,
-          winRate: p.win_rate,
-          points: p.points,
-          matches: p.matches,
-          smashPower: p.smash_power,
-          agilityRating: p.agility_rating,
-          stamina: p.stamina
+          winRate: p.win_rate || 0,
+          points: p.points || 0,
+          matches: p.matches || 0,
+          smashPower: p.smash_power || 70,
+          agilityRating: p.agility_rating || 70,
+          stamina: p.stamina || 70
         }));
         setPlayers(formattedPlayers);
         setActivePool(formattedPlayers.map(p => ({ ...p, selected: true })));
-      }
 
-      if (mData) {
-        const formattedMatches = mData.map(m => ({
+        const rawMatches = mSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        rawMatches.sort((a, b) => (b.date || b.created_at || '').localeCompare(a.date || a.created_at || ''));
+
+        const formattedMatches = rawMatches.map(m => ({
           id: m.id,
-          date: m.date,
+          date: m.date || m.created_at,
           teamAlpha: m.team_alpha,
           teamOmega: m.team_omega,
           referee: m.referee,
           outcome: m.outcome
         }));
         setMatchHistory(formattedMatches);
+      } catch (err) {
+        console.error('Error fetching data from Firestore:', err);
       }
     };
     fetchData();
@@ -497,34 +512,35 @@ export default function App() {
       return p;
     });
 
-    // Update players in Supabase
+    // Update players in Firestore
     for (const p of playersToUpdate) {
-      await supabase.from('players').update({
+      await updateDoc(doc(db, 'players', p.id), {
         points: p.points,
         matches: p.matches,
         win_rate: p.winRate
-      }).eq('id', p.id);
+      });
     }
 
-    // Insert match to Supabase
-    const { data: matchData } = await supabase.from('matches').insert({
+    // Insert match to Firestore
+    const matchPayload = {
+      date: new Date().toISOString(),
       team_alpha: activeMatch.teamAlpha,
       team_omega: activeMatch.teamOmega,
       referee: activeMatch.referee,
-      outcome: winningTeam
-    }).select().single();
+      outcome: winningTeam,
+      created_at: new Date().toISOString()
+    };
+    const matchDocRef = await addDoc(collection(db, 'matches'), matchPayload);
 
-    if (matchData) {
-      const newMatch: Match = {
-        id: matchData.id,
-        date: matchData.date,
-        teamAlpha: matchData.team_alpha,
-        teamOmega: matchData.team_omega,
-        referee: matchData.referee,
-        outcome: matchData.outcome as any
-      };
-      setMatchHistory(prev => [newMatch, ...prev]);
-    }
+    const newMatch: Match = {
+      id: matchDocRef.id,
+      date: matchPayload.date,
+      teamAlpha: matchPayload.team_alpha,
+      teamOmega: matchPayload.team_omega,
+      referee: matchPayload.referee,
+      outcome: matchPayload.outcome as any
+    };
+    setMatchHistory(prev => [newMatch, ...prev]);
 
     // Sort by points to update rank
     const sortedPlayers = [...updatedPlayers].sort((a, b) => b.points - a.points);
@@ -575,21 +591,21 @@ export default function App() {
 
   const handleDeleteMatch = async (matchId: string) => {
     if (window.confirm('Yakin ingin menghapus riwayat match ini? Poin pemain tidak akan berubah, hanya riwayat yang dihapus.')) {
-      const { error } = await supabase.from('matches').delete().eq('id', matchId);
-      if (error) {
-        alert('Gagal menghapus di database: ' + error.message);
-      } else {
+      try {
+        await deleteDoc(doc(db, 'matches', matchId));
         setMatchHistory(prev => prev.filter(m => m.id !== matchId));
+      } catch (error: any) {
+        alert('Gagal menghapus di database: ' + error.message);
       }
     }
   };
 
   const handleDeleteAllHistory = async () => {
     if (window.confirm('Yakin ingin menghapus SEMUA riwayat match? Tindakan ini tidak dapat dibatalkan.')) {
-      const { error } = await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) {
-        alert('Gagal menghapus semua data di database: ' + error.message);
-      } else {
+      try {
+        const snapshot = await getDocs(collection(db, 'matches'));
+        const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, 'matches', d.id)));
+        await Promise.all(deletePromises);
         setMatchHistory([]);
         setNotifications(prev => [{
           id: Date.now().toString(),
@@ -598,6 +614,8 @@ export default function App() {
           desc: 'Semua riwayat pertandingan telah dihapus oleh Admin.',
           time: 'Baru saja'
         }, ...prev]);
+      } catch (error: any) {
+        alert('Gagal menghapus semua data di database: ' + error.message);
       }
     }
   };
@@ -726,7 +744,7 @@ export default function App() {
           
           <div className="flex items-center gap-2 md:gap-4 group cursor-pointer relative shrink-0" onClick={async () => {
               if (window.confirm('Are you sure you want to log out?')) {
-                await supabase.auth.signOut();
+                await signOut(auth);
                 setSession(null);
                 setCurrentUser(null);
               }
@@ -1691,7 +1709,7 @@ export default function App() {
         )}
         
         {isAlertsOpen && <AlertsModal onClose={() => setIsAlertsOpen(false)} notifications={notifications} />}
-        {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+        {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} currentSeason={currentSeason} />}
       </AnimatePresence>
 
       <nav className="md:hidden fixed bottom-6 left-6 right-6 z-50 flex justify-around items-center py-4 bg-surface-container/60 backdrop-blur-xl rounded-2xl border border-primary/20 shadow-2xl">

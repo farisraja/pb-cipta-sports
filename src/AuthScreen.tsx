@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { LogIn, UserPlus, Trophy, Mail, Lock, AlertCircle, ArrowRight, User } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { auth, db } from './lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, addDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 
 export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => void }) {
@@ -22,17 +24,16 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await signInWithEmailAndPassword(auth, email, password);
         onAuthSuccess();
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
         
-        if (data.user) {
-          // Create initial player profile
-          const { error: profileError } = await supabase.from('players').insert({
-            user_id: data.user.id,
+        if (user) {
+          // Create initial player profile in Firestore
+          await addDoc(collection(db, 'players'), {
+            user_id: user.uid,
             name: name,
             avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
             rank: 'Neo',
@@ -42,15 +43,23 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: () => voi
             matches: 0,
             smash_power: 70,
             agility_rating: 70,
-            stamina: 70
+            stamina: 70,
+            created_at: new Date().toISOString()
           });
-          if (profileError) throw profileError;
         }
         
         onAuthSuccess();
       }
     } catch (err: any) {
-      setError(err.message);
+      let msg = err.message || 'Authentication error';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        msg = 'Invalid email or password.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        msg = 'Email already registered. Please login instead.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'Password should be at least 6 characters.';
+      }
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
